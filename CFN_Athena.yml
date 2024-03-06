@@ -1,0 +1,203 @@
+---
+Description: >
+  "Root CloudFormation Template which creates:
+    - IAM Role
+    - Lambda Function
+    - AWS::Events::Rule
+    - AWS::Lambda::Permission
+  "
+
+Parameters:
+
+  Email:
+    Description: >
+      Email address to receive SNS notification
+    Type: String
+
+  S3BucketNameLambdaFunction:
+    Description: >
+      Name of S3 Bucket (where the .zip python script is stored)
+    Type: String
+    Default: kennys-wonderful-s3-bucket
+    ConstraintDescription: https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html
+
+  S3ObjectKeyLambdaFunction:
+    Description: >
+      If any, add the prefix in front of the name of the .zip file
+    Type: String
+    Default: dormant_s3_bucket/dormant_s3_bucket_lambda_code.zip
+
+  S3PathAthenaQuery:
+    Description: >
+      S3 path for query result location (from step 6)
+    Type: String
+    Default: s3://athena-query-information/s3-access-logs-last-accessed-queries/
+
+  Limit:
+    Description: >
+      Number of days since the last accessed date (before flagging the bucket out)
+    Type: Number
+    Default: 10
+
+  Query:
+    Description: >
+      The Athena Query (from step 5)
+    Type: String
+    Default: SELECT bucket_name, MAX(parse_datetime(requestdatetime,'dd/MMM/yyyy:HH:mm:ss Z')) AS last_accessed_date FROM s3_access_logs_db.mybucket_logs WHERE NOT key='-' GROUP BY bucket_name;
+
+  
+Resources:
+
+  LambdaIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: IAM Role for Lambda function (Dormant_S3_Buckets)
+      RoleName: Dormant_S3_Buckets-IAM-Role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonAthenaFullAccess
+      Path: /
+      Policies: ### Adds or updates an inline policy document that is embedded in the specified IAM role.
+        - PolicyName: Dormant_S3_Buckets-IAM-inline-policy
+          PolicyDocument: {
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "logs:CreateLogGroup",
+                  "logs:CreateLogStream",
+                  "logs:PutLogEvents"
+                ],
+                "Resource": {
+                  "Fn::Sub": "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/Dormant_S3_Buckets-LambdaFunction:*"
+                }
+              },
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "sns:Publish"
+                ],
+                "Resource": {
+                  "Fn::Sub": "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:Dormant_S3_Buckets-SNS-Topic"
+                }
+              },
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "s3:GetObject",
+                  "s3:PutObject"
+                ],
+                "Resource": "*"
+              }
+            ]
+          }
+      Tags: 
+        - Key: Name
+          Value: Dormant_S3_Buckets
+
+
+  ScheduleIAMRole:
+      Type: AWS::IAM::Role
+      Properties:
+        Description: IAM Role for Scheduler Schedule (Dormant_S3_Buckets)
+        RoleName: Amazon_EventBridge_Scheduler_Dormant_S3_Buckets
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - scheduler.amazonaws.com
+              Action:
+                - 'sts:AssumeRole'
+              Condition:
+                StringEquals:
+                  aws:SourceAccount:
+                    - !Sub "${AWS::AccountId}"
+        Path: /
+        Policies: ### Adds or updates an inline policy document that is embedded in the specified IAM role.
+          - PolicyName: Dormant_S3_Buckets-IAM-inline-policy
+            PolicyDocument: {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "lambda:InvokeFunction"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:Dormant_S3_Buckets-LambdaFunction"
+                  }
+                }
+              ]
+            }
+        Tags: 
+          - Key: Name
+            Value: Dormant_S3_Buckets
+
+
+  LambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties: 
+      FunctionName: Dormant_S3_Buckets-LambdaFunction
+      Description: Lambda Function for Dormant_S3_Buckets
+      Code: 
+        S3Bucket: !Ref S3BucketNameLambdaFunction
+        S3Key: !Ref S3ObjectKeyLambdaFunction
+      Environment: 
+        Variables:
+          SNS_Topic_Arn: !Join [ ":", [ !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}", !GetAtt SNSTopic.TopicName] ]
+          S3PathAthenaQuery: !Ref S3PathAthenaQuery
+          Limit: !Ref Limit
+          Query: !Ref Query
+      Handler: dormant_s3_bucket_lambda_code.lambda_handler
+      Layers: 
+        - arn:aws:lambda:ap-southeast-1:336392948345:layer:AWSSDKPandas-Python39:5
+      # ReservedConcurrentExecutions: 10
+      Role: !GetAtt LambdaIAMRole.Arn
+      Runtime: python3.9
+      Tags: 
+        - Key: Name
+          Value: Dormant_S3_Buckets
+      Timeout: 300
+
+
+  MySchedulerSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Description: Trigger the Lambda Function daily to scan for dormant S3 buckets
+      # EndDate: String
+      FlexibleTimeWindow: 
+        MaximumWindowInMinutes: 1
+        Mode: FLEXIBLE # OFF | FLEXIBLE
+      # GroupName: String
+      # KmsKeyArn: String
+      Name: Daily_Invoke_Dormant_S3_Buckets
+      ScheduleExpression: cron(0 01 ? * * *)
+      # StartDate: String
+      State: ENABLED
+      Target: 
+        Arn: !GetAtt LambdaFunction.Arn
+        RoleArn: !GetAtt ScheduleIAMRole.Arn
+
+
+  SNSTopic:
+    Type: AWS::SNS::Topic
+    Properties: 
+      TopicName: Dormant_S3_Buckets-SNS-Topic
+      # KmsMasterKeyId: alias/aws/sns
+      Subscription: 
+        - Endpoint: !Ref Email
+          Protocol: email
+      Tags: 
+        - Key: Name
+          Value: Dormant_S3_Buckets
