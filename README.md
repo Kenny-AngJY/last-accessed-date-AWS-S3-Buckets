@@ -3,6 +3,7 @@ https://medium.com/@kennyangjy/how-to-determine-the-last-accessed-date-of-AWS-S3
 
 ![Be notified of dormant S3 Buckets](./S3_Last_Accessed.jpg?raw=true "Be notified of dormant S3 Buckets")
 
+---
 ### To provision the resources in this repository:
 1. `git clone https://github.com/Kenny-AngJY/last-accessed-date-AWS-S3-Buckets.git`
 2. Change directory to the **Terraform** folder <br> `cd Terraform`
