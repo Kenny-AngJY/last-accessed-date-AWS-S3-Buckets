@@ -18,4 +18,4 @@ As no backend is defined, the default backend will be local.
 7. An email will be sent to you from AWS Notifications. Remember to confirm your email subscription to the SNS topic.
 
 ### Clean-up
-1. `terraform destroy`
+1. `terraform destroy -var-file=var.tfvars`
