@@ -85,7 +85,7 @@ resource "aws_lambda_function" "my_lambda_function" {
   timeout       = 300
   # source_code_hash = data.archive_file.lambda.output_base64sha256
   runtime = "python3.12"
-  layers  = ["arn:aws:lambda:ap-southeast-1:336392948345:layer:AWSSDKPandas-Python312:6"]
+  layers  = ["arn:aws:lambda:ap-southeast-1:336392948345:layer:AWSSDKPandas-Python312:8"]
   environment {
     variables = {
       SNS_Topic_Arn     = aws_sns_topic.my_SNS_topic.arn
