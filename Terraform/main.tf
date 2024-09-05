@@ -3,6 +3,7 @@ locals {
   common_tags = {
     Name        = "Dormant_S3_Buckets"
     CreatedFrom = "Terraform"
+    description = "Kenny Medium Article"
   }
   region_account_id = "${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}"
 
@@ -14,7 +15,6 @@ locals {
 output "s3_arn" {
   value = local.s3_arn
 }
-
 
 resource "aws_iam_role" "LambdaIAMRole" {
   name = "Dormant_S3_Buckets-IAM-Role"
@@ -71,7 +71,6 @@ resource "aws_iam_role" "LambdaIAMRole" {
       ]
     })
   }
-  tags = local.common_tags
 }
 
 resource "aws_lambda_function" "my_lambda_function" {
@@ -85,7 +84,7 @@ resource "aws_lambda_function" "my_lambda_function" {
   timeout       = 300
   # source_code_hash = data.archive_file.lambda.output_base64sha256
   runtime = "python3.12"
-  layers  = ["arn:aws:lambda:ap-southeast-1:336392948345:layer:AWSSDKPandas-Python312:8"]
+  layers  = ["arn:aws:lambda:ap-southeast-1:336392948345:layer:AWSSDKPandas-Python312:13"]
   environment {
     variables = {
       SNS_Topic_Arn     = aws_sns_topic.my_SNS_topic.arn
@@ -94,7 +93,6 @@ resource "aws_lambda_function" "my_lambda_function" {
       Query             = var.Query
     }
   }
-  tags = local.common_tags
 }
 
 resource "aws_iam_role" "ScheduleIAMRole" {
@@ -129,7 +127,6 @@ resource "aws_iam_role" "ScheduleIAMRole" {
       ]
     })
   }
-  tags = local.common_tags
 }
 
 resource "aws_scheduler_schedule" "my_scheduler_schedule" {
