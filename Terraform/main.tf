@@ -31,46 +31,55 @@ resource "aws_iam_role" "LambdaIAMRole" {
       },
     ]
   })
-  managed_policy_arns = ["arn:aws:iam::aws:policy/AmazonAthenaFullAccess"]
-  inline_policy {
-    name = "CFN_Stack_TP_InlinePolicy"
-    policy = jsonencode({
-      Version = "2012-10-17"
-      Statement = [
-        {
-          "Effect" : "Allow",
-          "Action" : [
-            "logs:CreateLogGroup",
-            "logs:CreateLogStream",
-            "logs:PutLogEvents"
-          ],
-          # "Resource": "*"
-          "Resource" : "arn:aws:logs:${local.region_account_id}:log-group:/aws/lambda/Dormant_S3_Buckets-LambdaFunction:*"
-        },
-        {
-          "Effect" : "Allow",
-          "Action" : [
-            "sns:Publish"
-          ],
-          "Resource" : "arn:aws:sns:${local.region_account_id}:Dormant_S3_Buckets-SNS-Topic"
-        },
-        {
-          "Effect" : "Allow",
-          "Action" : [
-            "s3:GetObject",
-          ],
-          "Resource" : "*"
-        },
-        {
-          "Effect" : "Allow",
-          "Action" : [
-            "s3:PutObject"
-          ],
-          "Resource" : local.s3_arn
-        }
-      ]
-    })
-  }
+}
+
+resource "aws_iam_role_policy" "LambdaIAMRole_InlinePolicy" {
+  name = "CFN_Stack_TP_InlinePolicy"
+  role = aws_iam_role.LambdaIAMRole.id
+
+  # Terraform's "jsonencode" function converts a
+  # Terraform expression result to valid JSON syntax.
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        "Effect" : "Allow",
+        "Action" : [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ],
+        # "Resource": "*"
+        "Resource" : "arn:aws:logs:${local.region_account_id}:log-group:/aws/lambda/Dormant_S3_Buckets-LambdaFunction:*"
+      },
+      {
+        "Effect" : "Allow",
+        "Action" : [
+          "sns:Publish"
+        ],
+        "Resource" : "arn:aws:sns:${local.region_account_id}:Dormant_S3_Buckets-SNS-Topic"
+      },
+      {
+        "Effect" : "Allow",
+        "Action" : [
+          "s3:GetObject",
+        ],
+        "Resource" : "*"
+      },
+      {
+        "Effect" : "Allow",
+        "Action" : [
+          "s3:PutObject"
+        ],
+        "Resource" : local.s3_arn
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "lambda" {
+  role       = aws_iam_role.LambdaIAMRole.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonAthenaFullAccess"
 }
 
 resource "aws_lambda_function" "my_lambda_function" {
@@ -111,22 +120,24 @@ resource "aws_iam_role" "ScheduleIAMRole" {
       },
     ]
   })
+}
 
-  inline_policy {
-    name = "my_inline_policy"
-    policy = jsonencode({
-      Version = "2012-10-17"
-      Statement = [
-        {
-          "Effect" : "Allow",
-          "Action" : [
-            "lambda:InvokeFunction"
-          ],
-          "Resource" : "arn:aws:lambda:${local.region_account_id}:function:${var.LambdaFunctionName}"
-        }
-      ]
-    })
-  }
+resource "aws_iam_role_policy" "ScheduleIAMRole_InlinePolicy" {
+  name = "my_inline_policy"
+  role = aws_iam_role.ScheduleIAMRole.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Version = "2012-10-17"
+    Statement = [
+      {
+        "Effect" : "Allow",
+        "Action" : [
+          "lambda:InvokeFunction"
+        ],
+        "Resource" : "arn:aws:lambda:${local.region_account_id}:function:${var.LambdaFunctionName}"
+      }
+    ]
+  })
 }
 
 resource "aws_scheduler_schedule" "my_scheduler_schedule" {
